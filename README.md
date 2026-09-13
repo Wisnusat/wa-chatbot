@@ -26,13 +26,25 @@ Rancangan arsitektur lengkap ada di [whatsapp-engine-design.md](./whatsapp-engin
    - `N8N_WEBHOOK_URL` — endpoint webhook n8n tujuan forwarding pesan masuk
    - `REDIS_URL` — connection string Redis (rekomendasi: buat database gratis di [Upstash](https://console.upstash.com), ambil connection string dari tab **Connect** driver **ioredis**, formatnya `rediss://default:<password>@<endpoint>.upstash.io:6379`)
    - `SEND_RATE_LIMIT_MAX` / `SEND_RATE_LIMIT_WINDOW_MS` — opsional, default 20 pesan/60 detik (lihat bagian **Reconnect & Rate Limiting**)
+   - `AUTH_STATE_ENCRYPTION_KEY` — **wajib**, passphrase rahasia untuk enkripsi `auth_state/` (lihat bagian **Enkripsi Auth State** di bawah). Generate dengan:
+     ```
+     node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+     ```
 3. Jalankan dev server:
    ```
    npm run dev
    ```
 4. Buka `http://localhost:3000/api-docs` untuk cek API, atau hubungkan frontend eksternal ke Socket.IO untuk scan QR (lihat bagian **Socket.IO Events** di bawah).
 
-Auth state tersimpan di folder `auth_state/` (gitignored) — sekali scan, tidak perlu scan ulang selama folder ini tidak dihapus.
+Auth state tersimpan terenkripsi di folder `auth_state/` (gitignored) — sekali scan, tidak perlu scan ulang selama folder ini tidak dihapus dan `AUTH_STATE_ENCRYPTION_KEY` tidak berubah.
+
+## Enkripsi Auth State
+
+`auth_state/` setara kredensial penuh ke akun WhatsApp, jadi setiap file di dalamnya dienkripsi (AES-256-GCM) sebelum ditulis ke disk — implementasinya di [src/whatsapp/encryptedAuthState.ts](src/whatsapp/encryptedAuthState.ts), pengganti `useMultiFileAuthState` bawaan Baileys yang menyimpan plain JSON.
+
+- Key diturunkan dari `AUTH_STATE_ENCRYPTION_KEY` via `scrypt`. **Jangan sampai hilang/berubah** — auth state lama tidak bisa didekripsi dengan key yang berbeda (server akan gagal start dengan error jelas, bukan diam-diam kehilangan sesi).
+- File `auth_state/` lama (belum terenkripsi, dari sebelum fitur ini ada) otomatis terdeteksi dan di-migrasi ke format terenkripsi saat pertama kali dibaca — tidak perlu scan ulang QR saat upgrade.
+- Kalau memang sengaja mau reset total (ganti key atau lupa key lama), hapus folder `auth_state/` dan scan ulang dari nol.
 
 ## REST Endpoint
 
@@ -103,4 +115,4 @@ Baileys versi terbaru bergantung pada `whatsapp-rust-bridge`, sebuah package ESM
 
 ## Roadmap
 
-Fase 1-4 (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger) sudah selesai, ditambah sebagian Fase 6 (rate limiting & reconnect robust di atas). Yang masih tersisa: Fase 5 (Docker/deployment) dan sisa Fase 6 (enkripsi `auth_state` at-rest) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk detail rancangannya.
+Fase 1-4 (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger) sudah selesai, ditambah seluruh item Fase 6 (rate limiting, reconnect robust, enkripsi auth state). Yang masih tersisa: Fase 5 (Docker/deployment) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk detail rancangannya.
