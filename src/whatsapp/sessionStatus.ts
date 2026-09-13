@@ -1,8 +1,11 @@
+import { env } from '../config/env.ts';
+
 export type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
 
 export interface SessionState {
   status: ConnectionStatus;
   qr: string | null;
+  phoneNumber: string | null;
   lastConnectedAt: string | null;
   lastMessageAt: string | null;
   reconnectCount: number;
@@ -11,6 +14,7 @@ export interface SessionState {
 const state: SessionState = {
   status: 'connecting',
   qr: null,
+  phoneNumber: null,
   lastConnectedAt: null,
   lastMessageAt: null,
   reconnectCount: 0,
@@ -23,4 +27,8 @@ export function getStatus(): SessionState {
 export function updateStatus(partial: Partial<SessionState>): SessionState {
   Object.assign(state, partial);
   return getStatus();
+}
+
+export function getFullStatus() {
+  return { ...getStatus(), n8nWebhookUrl: env.n8nWebhookUrl };
 }

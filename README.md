@@ -40,19 +40,29 @@ Auth state tersimpan di folder `auth_state/` (gitignored) — sekali scan, tidak
 | `GET /health` | Health check JSON (status, last connected, reconnect count) |
 | `GET /api-docs` | Dokumentasi API interaktif (Swagger UI) |
 | `POST /messages/send` | Kirim pesan WhatsApp |
-| `GET /session/status` | Cek status sesi |
+| `GET /session/status` | Cek status sesi — termasuk `phoneNumber` (nomor terkoneksi) dan `n8nWebhookUrl` |
 | `GET /session/qr` | Ambil QR terakhir dalam bentuk base64 data URL (fallback non-realtime, untuk frontend yang belum konek Socket.IO) |
-| `POST /session/logout` | Logout sesi & hapus auth state |
+| `POST /session/logout` | Logout sesi & hapus auth state (dipakai juga untuk "ganti nomor" — otomatis generate QR baru setelahnya) |
+| `GET /logs/messages` | Riwayat pesan WhatsApp masuk (in-memory, maks 200 terakhir) |
+| `GET /logs/forwards` | Riwayat hasil forward ke n8n — sukses/gagal per percobaan (in-memory, maks 200 terakhir) |
 
 ## Socket.IO Events
 
-Frontend eksternal connect ke server ini via Socket.IO client (`io("http://localhost:3000")`) dan subscribe event berikut untuk render QR & status realtime:
+Frontend eksternal connect ke server ini via Socket.IO client (`io("http://localhost:3000")`) dan subscribe event berikut untuk render QR, status, dan log realtime:
 
 | Event | Payload | Kapan dikirim |
 |---|---|---|
 | `qr:update` | `{ qr: string }` (base64 data URL) | Setiap kali QR baru digenerate (expired ~20 detik) |
 | `qr:cleared` | — | Saat koneksi berhasil dibuka, sembunyikan QR di UI |
 | `status:update` | Sama seperti response `GET /session/status` | Saat status koneksi berubah (open/close) |
+| `message:received` | `{ from, text, type, timestamp, rawId }` | Setiap pesan WhatsApp masuk baru |
+| `forward:result` | `{ jobId, status: 'success'\|'failed', attempt, timestamp, error, payload }` | Setiap kali worker selesai (atau gagal) forward pesan ke n8n |
+
+> Catatan: log pesan & forward disimpan in-memory (reset kalau server restart), belum persisten ke database — cukup untuk monitoring dashboard, bukan audit trail jangka panjang.
+
+## Multi-Akun WhatsApp?
+
+Engine ini didesain **single-account** (satu socket Baileys, satu `auth_state/`). "Ganti nomor" (logout nomor lama → scan QR nomor baru) sudah didukung lewat `POST /session/logout`. Multi-akun yang jalan **bersamaan** secara teknis mungkin dengan Baileys, tapi butuh refactor arsitektur (auth state & socket per-sesi, endpoint session-aware) yang belum diimplementasikan — dicatat sebagai enhancement masa depan, bukan bagian dari versi saat ini.
 
 ## Scripts
 

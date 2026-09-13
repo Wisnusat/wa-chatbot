@@ -8,11 +8,17 @@ import {
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { logger } from '../utils/logger.ts';
-import { updateStatus, getStatus } from './sessionStatus.ts';
+import { updateStatus, getFullStatus } from './sessionStatus.ts';
 import { getIO } from '../sockets/io.ts';
 import { enqueueForward } from '../queue/queue.ts';
+import { addMessageLog } from './messageLog.ts';
 
 type SaveCreds = () => Promise<void>;
+
+function extractPhoneNumber(jid: string | undefined): string | null {
+  if (!jid) return null;
+  return jid.split(/[:@]/)[0] ?? null;
+}
 
 export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): void {
   sock.ev.on('creds.update', saveCreds);
@@ -37,11 +43,12 @@ export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): voi
       updateStatus({
         status: 'open',
         qr: null,
+        phoneNumber: extractPhoneNumber(sock.user?.id),
         lastConnectedAt: new Date().toISOString(),
       });
       logger.info('WhatsApp connection open');
       getIO().emit('qr:cleared');
-      getIO().emit('status:update', getStatus());
+      getIO().emit('status:update', getFullStatus());
     }
 
     if (connection === 'close') {
@@ -49,7 +56,7 @@ export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): voi
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       updateStatus({ status: 'close' });
       logger.warn({ statusCode, isLoggedOut }, 'WhatsApp connection closed');
-      getIO().emit('status:update', getStatus());
+      getIO().emit('status:update', getFullStatus());
     }
   });
 
@@ -73,13 +80,20 @@ export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): voi
 
       updateStatus({ lastMessageAt: new Date().toISOString() });
 
-      enqueueForward({
+      const payload = {
         from: msg.key.remoteJid ?? 'unknown',
         text,
         type: contentType ?? 'unknown',
         timestamp: Number(msg.messageTimestamp ?? Math.floor(Date.now() / 1000)),
         rawId: msg.key.id ?? '',
-      }).catch((err) => logger.error(err, 'Failed to enqueue message for n8n forwarding'));
+      };
+
+      addMessageLog(payload);
+      getIO().emit('message:received', payload);
+
+      enqueueForward(payload).catch((err) =>
+        logger.error(err, 'Failed to enqueue message for n8n forwarding'),
+      );
     }
   });
 }

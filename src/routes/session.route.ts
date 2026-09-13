@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import { Router } from 'express';
 import { getSocket, initSocket } from '../whatsapp/socket.ts';
-import { getStatus, updateStatus } from '../whatsapp/sessionStatus.ts';
+import { getStatus, getFullStatus, updateStatus } from '../whatsapp/sessionStatus.ts';
 import { AUTH_STATE_DIR } from '../whatsapp/authState.ts';
 import { logger } from '../utils/logger.ts';
 
@@ -14,10 +14,10 @@ export const sessionRouter = Router();
  *     summary: Cek status koneksi sesi WhatsApp
  *     responses:
  *       200:
- *         description: Status sesi saat ini
+ *         description: Status sesi saat ini, termasuk nomor terkoneksi dan tujuan webhook n8n
  */
 sessionRouter.get('/session/status', (_req, res) => {
-  res.json(getStatus());
+  res.json(getFullStatus());
 });
 
 /**
@@ -54,7 +54,7 @@ sessionRouter.get('/session/qr', (_req, res) => {
 sessionRouter.post('/session/logout', async (_req, res) => {
   await getSocket().logout();
   await rm(AUTH_STATE_DIR, { recursive: true, force: true });
-  updateStatus({ status: 'connecting', qr: null, lastConnectedAt: null });
+  updateStatus({ status: 'connecting', qr: null, phoneNumber: null, lastConnectedAt: null });
 
   res.json({ success: true });
 
