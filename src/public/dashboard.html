@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>WhatsApp Engine — Dashboard</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 480px;
+      margin: 3rem auto;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    td { padding: 0.5rem; border-bottom: 1px solid #eee; }
+    td:first-child { color: #666; width: 45%; }
+    .status-open { color: #128c7e; font-weight: bold; }
+    .status-close { color: #c0392b; font-weight: bold; }
+    .status-connecting, .status-qr { color: #d68910; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Status Koneksi WhatsApp Engine</h1>
+  <table>
+    <tr><td>Status</td><td id="status">-</td></tr>
+    <tr><td>Terakhir Terhubung</td><td id="lastConnectedAt">-</td></tr>
+    <tr><td>Pesan Terakhir Masuk</td><td id="lastMessageAt">-</td></tr>
+    <tr><td>Jumlah Reconnect</td><td id="reconnectCount">-</td></tr>
+  </table>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    function render(status) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = status.status;
+      statusEl.className = 'status-' + status.status;
+      document.getElementById('lastConnectedAt').textContent = status.lastConnectedAt ?? '-';
+      document.getElementById('lastMessageAt').textContent = status.lastMessageAt ?? '-';
+      document.getElementById('reconnectCount').textContent = status.reconnectCount ?? 0;
+    }
+
+    socket.on('status:update', render);
+
+    fetch('/health')
+      .then((r) => r.json())
+      .then(render)
+      .catch(() => {});
+  </script>
+</body>
+</html>

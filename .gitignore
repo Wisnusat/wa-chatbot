@@ -1,0 +1,5 @@
+node_modules/
+auth_state/
+dist/
+.env
+.claude/settings.local.json
