@@ -45,6 +45,9 @@ Auth state tersimpan di folder `auth_state/` (gitignored) — sekali scan, tidak
 | `POST /session/logout` | Logout sesi & hapus auth state (dipakai juga untuk "ganti nomor" — otomatis generate QR baru setelahnya) |
 | `GET /logs/messages` | Riwayat pesan WhatsApp masuk (in-memory, maks 200 terakhir) |
 | `GET /logs/forwards` | Riwayat hasil forward ke n8n — sukses/gagal per percobaan (in-memory, maks 200 terakhir) |
+| `GET /allowlist` | Ambil konfigurasi filter forwarding (`{ enabled, jids }`) |
+| `PUT /allowlist` | Ganti filter forwarding — kalau `enabled: true`, hanya JID di `jids` yang diteruskan ke n8n |
+| `GET /chats/known` | Daftar grup/kontak yang pernah kirim pesan (untuk dipilih sebagai allowlist) |
 
 ## Socket.IO Events
 
@@ -57,8 +60,18 @@ Frontend eksternal connect ke server ini via Socket.IO client (`io("http://local
 | `status:update` | Sama seperti response `GET /session/status` | Saat status koneksi berubah (open/close) |
 | `message:received` | `{ from, text, type, timestamp, rawId }` | Setiap pesan WhatsApp masuk baru |
 | `forward:result` | `{ jobId, status: 'success'\|'failed', attempt, timestamp, error, payload }` | Setiap kali worker selesai (atau gagal) forward pesan ke n8n |
+| `chat:known` | `{ jid, name, isGroup, lastMessageAt }` | Saat grup/kontak baru terdeteksi pertama kali mengirim pesan |
+| `allowlist:update` | `{ enabled, jids }` | Saat allowlist diubah lewat `PUT /allowlist` |
 
-> Catatan: log pesan & forward disimpan in-memory (reset kalau server restart), belum persisten ke database — cukup untuk monitoring dashboard, bukan audit trail jangka panjang.
+> Catatan: log pesan, forward, dan daftar chat dikenal disimpan in-memory (reset kalau server restart), belum persisten ke database — cukup untuk monitoring dashboard, bukan audit trail jangka panjang. Allowlist sendiri **persisten** ke file `data/allowlist.json` (gitignored), jadi tetap tersimpan lintas restart.
+
+## Filter Pesan (Allowlist)
+
+Secara default, **semua** pesan masuk diteruskan ke n8n. Untuk membatasi hanya dari grup/kontak tertentu:
+
+1. `GET /chats/known` untuk lihat daftar JID yang pernah mengirim pesan (nama grup di-resolve otomatis via `sock.groupMetadata`, nama kontak dari `pushName` WhatsApp).
+2. `PUT /allowlist` dengan body `{ "enabled": true, "jids": ["<jid1>", "<jid2>"] }` — hanya JID di daftar ini yang akan di-forward ke n8n setelahnya. Pesan lain tetap tercatat di `/logs/messages` (untuk visibility), tapi tidak dikirim ke webhook.
+3. Set `enabled: false` untuk kembali forward semua pesan.
 
 ## Multi-Akun WhatsApp?
 

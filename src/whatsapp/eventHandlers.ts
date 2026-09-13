@@ -12,12 +12,30 @@ import { updateStatus, getFullStatus } from './sessionStatus.ts';
 import { getIO } from '../sockets/io.ts';
 import { enqueueForward } from '../queue/queue.ts';
 import { addMessageLog } from './messageLog.ts';
+import { hasKnownChat, touchKnownChat, upsertKnownChat } from './chatDirectory.ts';
+import { isJidAllowed } from './allowlist.ts';
 
 type SaveCreds = () => Promise<void>;
 
 function extractPhoneNumber(jid: string | undefined): string | null {
   if (!jid) return null;
   return jid.split(/[:@]/)[0] ?? null;
+}
+
+async function resolveChatName(
+  sock: WASocket,
+  jid: string,
+  isGroup: boolean,
+  pushName: string | null | undefined,
+): Promise<string> {
+  if (!isGroup) return pushName ?? jid;
+
+  try {
+    const metadata = await sock.groupMetadata(jid);
+    return metadata.subject || jid;
+  } catch {
+    return jid;
+  }
 }
 
 export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): void {
@@ -91,9 +109,22 @@ export function registerEventHandlers(sock: WASocket, saveCreds: SaveCreds): voi
       addMessageLog(payload);
       getIO().emit('message:received', payload);
 
-      enqueueForward(payload).catch((err) =>
-        logger.error(err, 'Failed to enqueue message for n8n forwarding'),
-      );
+      const isGroup = payload.from.endsWith('@g.us');
+      if (hasKnownChat(payload.from)) {
+        touchKnownChat(payload.from);
+      } else {
+        resolveChatName(sock, payload.from, isGroup, msg.pushName)
+          .then((name) => upsertKnownChat(payload.from, name, isGroup))
+          .catch((err) => logger.error(err, 'Failed to resolve chat name'));
+      }
+
+      if (isJidAllowed(payload.from)) {
+        enqueueForward(payload).catch((err) =>
+          logger.error(err, 'Failed to enqueue message for n8n forwarding'),
+        );
+      } else {
+        logger.info({ jid: payload.from }, 'Message skipped: not in allowlist');
+      }
     }
   });
 }

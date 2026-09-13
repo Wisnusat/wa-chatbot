@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.route.ts';
 import { messagesRouter } from './routes/messages.route.ts';
 import { sessionRouter } from './routes/session.route.ts';
 import { logsRouter } from './routes/logs.route.ts';
+import { allowlistRouter } from './routes/allowlist.route.ts';
 import { swaggerSpec } from './docs/swagger.ts';
 
 export const app = express();
@@ -19,6 +20,7 @@ app.use(healthRouter);
 app.use(messagesRouter);
 app.use(sessionRouter);
 app.use(logsRouter);
+app.use(allowlistRouter);
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   logger.error(err, 'Unhandled request error');
