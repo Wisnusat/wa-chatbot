@@ -4,7 +4,7 @@ import { Server as SocketIOServer } from 'socket.io';
 let io: SocketIOServer | null = null;
 
 export function initSocketIO(httpServer: HttpServer): SocketIOServer {
-  io = new SocketIOServer(httpServer);
+  io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
   return io;
 }
 

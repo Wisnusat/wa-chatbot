@@ -1,6 +1,8 @@
 # WhatsApp Engine
 
-Engine WhatsApp berbasis [Baileys](https://github.com/WhiskeySockets/Baileys) yang meneruskan pesan masuk sebagai webhook ke n8n, menyediakan REST API terdokumentasi (Swagger) untuk kontrol dasar, dan halaman web untuk scan QR & monitoring status koneksi.
+Engine WhatsApp berbasis [Baileys](https://github.com/WhiskeySockets/Baileys) yang meneruskan pesan masuk sebagai webhook ke n8n, dan menyediakan REST API terdokumentasi (Swagger) + event Socket.IO untuk kontrol dasar dan monitoring status koneksi.
+
+Ini adalah **backend murni (headless)** — tidak ada halaman web bawaan. Interface (QR scan page, dashboard monitoring) dibangun sebagai project terpisah yang mengonsumsi REST API & Socket.IO di bawah ini. CORS sudah diaktifkan (`origin: '*'`) agar bisa diakses dari origin manapun.
 
 Rancangan arsitektur lengkap ada di [whatsapp-engine-design.md](./whatsapp-engine-design.md).
 
@@ -8,8 +10,8 @@ Rancangan arsitektur lengkap ada di [whatsapp-engine-design.md](./whatsapp-engin
 
 - Node.js LTS + TypeScript (dijalankan native tanpa transpiler terpisah saat dev, lihat catatan di bawah)
 - `@whiskeysockets/baileys` — koneksi WhatsApp
-- Express 5 — REST API & static file serving
-- Socket.IO — push QR code & status realtime ke browser
+- Express 5 — REST API
+- Socket.IO — push QR code & status realtime ke frontend eksternal
 - BullMQ + Redis (Upstash) — antrian forwarding pesan ke n8n dengan retry otomatis
 - Pino — structured logging
 - `swagger-jsdoc` + `swagger-ui-express` — dokumentasi API otomatis
@@ -27,29 +29,37 @@ Rancangan arsitektur lengkap ada di [whatsapp-engine-design.md](./whatsapp-engin
    ```
    npm run dev
    ```
-4. Buka `http://localhost:3000/index.html`, scan QR dari WhatsApp (Linked Devices → Link a Device).
+4. Buka `http://localhost:3000/api-docs` untuk cek API, atau hubungkan frontend eksternal ke Socket.IO untuk scan QR (lihat bagian **Socket.IO Events** di bawah).
 
 Auth state tersimpan di folder `auth_state/` (gitignored) — sekali scan, tidak perlu scan ulang selama folder ini tidak dihapus.
 
-## Endpoint & Halaman
+## REST Endpoint
 
 | Path | Keterangan |
 |---|---|
-| `GET /index.html` | Halaman scan QR (realtime via Socket.IO) |
-| `GET /dashboard.html` | Dashboard monitoring status koneksi (realtime) |
 | `GET /health` | Health check JSON (status, last connected, reconnect count) |
 | `GET /api-docs` | Dokumentasi API interaktif (Swagger UI) |
 | `POST /messages/send` | Kirim pesan WhatsApp |
 | `GET /session/status` | Cek status sesi |
-| `GET /session/qr` | Ambil QR terakhir (fallback non-realtime) |
+| `GET /session/qr` | Ambil QR terakhir dalam bentuk base64 data URL (fallback non-realtime, untuk frontend yang belum konek Socket.IO) |
 | `POST /session/logout` | Logout sesi & hapus auth state |
+
+## Socket.IO Events
+
+Frontend eksternal connect ke server ini via Socket.IO client (`io("http://localhost:3000")`) dan subscribe event berikut untuk render QR & status realtime:
+
+| Event | Payload | Kapan dikirim |
+|---|---|---|
+| `qr:update` | `{ qr: string }` (base64 data URL) | Setiap kali QR baru digenerate (expired ~20 detik) |
+| `qr:cleared` | — | Saat koneksi berhasil dibuka, sembunyikan QR di UI |
+| `status:update` | Sama seperti response `GET /session/status` | Saat status koneksi berubah (open/close) |
 
 ## Scripts
 
 | Command | Keterangan |
 |---|---|
 | `npm run dev` | Jalankan dev server dengan hot-reload (Node native TypeScript execution, lihat catatan di bawah) |
-| `npm run build` | Compile TypeScript ke `dist/` + copy asset `public/` |
+| `npm run build` | Compile TypeScript ke `dist/` |
 | `npm start` | Jalankan hasil build (`node dist/server.js`) — untuk production |
 
 ### Catatan: kenapa dev script tidak pakai `tsx`

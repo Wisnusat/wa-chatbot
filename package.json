@@ -1,19 +1,20 @@
 {
   "name": "wa-chatbot",
   "version": "1.0.0",
-  "description": "WhatsApp engine (Baileys) forwarding incoming messages to n8n via webhook, with REST API and QR/monitoring UI",
+  "description": "WhatsApp engine (Baileys) forwarding incoming messages to n8n via webhook, with a REST API and Socket.IO events for an external frontend",
   "main": "dist/server.js",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/server.ts",
-    "build": "tsc && node scripts/copy-public.mjs",
+    "build": "tsc",
     "start": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.2",
     "@types/qrcode": "^1.5.6",
@@ -32,6 +33,7 @@
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "axios": "^1.20.0",
     "bullmq": "^6.3.4",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",

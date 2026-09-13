@@ -1,4 +1,4 @@
-import path from 'node:path';
+import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import { serve as swaggerServe, setup as swaggerSetup } from 'swagger-ui-express';
 import { logger } from './utils/logger.ts';
@@ -9,8 +9,8 @@ import { swaggerSpec } from './docs/swagger.ts';
 
 export const app = express();
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(import.meta.dirname, 'public')));
 
 app.use('/api-docs', swaggerServe, swaggerSetup(swaggerSpec));
 
