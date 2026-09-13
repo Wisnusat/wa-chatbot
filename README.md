@@ -92,6 +92,29 @@ Secara default, **semua** pesan masuk diteruskan ke n8n. Untuk membatasi hanya d
 - **Auto-reconnect** pakai exponential backoff (2s, 4s, 8s, ... maks 60s per percobaan) dan berhenti otomatis setelah 10 kali gagal berturut-turut (supaya tidak spam-reconnect ke WhatsApp kalau jaringan/server bermasalah lama). Kalau sudah menyerah, panggil `POST /session/reconnect` untuk coba lagi manual — counter di-reset, tidak perlu scan QR ulang selama auth state masih valid.
 - **Rate limit** di `POST /messages/send`: default maks 20 pesan per 60 detik, berlaku **global** (bukan per-IP/per-caller) karena tujuannya membatasi total volume yang keluar dari satu akun WhatsApp ini, bukan membatasi satu klien. Kelebihan limit dapat response `429`. Atur lewat `SEND_RATE_LIMIT_MAX` dan `SEND_RATE_LIMIT_WINDOW_MS` di `.env`.
 
+## Deployment (Docker)
+
+Image dibangun multi-stage (`Dockerfile`) — stage build compile TypeScript, stage production cuma bawa `dist/` + dependency production (`npm ci --omit=dev`), jalan sebagai non-root user (`node`) bawaan image `node:22-alpine`.
+
+```bash
+# Build & jalankan lokal
+docker compose up --build
+
+# Atau manual tanpa compose
+docker build -t wa-chatbot .
+docker run -d --name wa-chatbot \
+  --env-file .env \
+  -p 3000:3000 \
+  -v wa-chatbot-auth-state:/app/auth_state \
+  -v wa-chatbot-data:/app/data \
+  wa-chatbot
+```
+
+- **`auth_state/`** dan **`data/`** harus jadi **persistent volume** (bukan folder biasa di container) — kalau tidak, sesi WhatsApp & allowlist hilang tiap kali container di-redeploy/restart.
+- Redis pakai Upstash (cloud), jadi `docker-compose.yml` tidak menyertakan container Redis — kalau nanti pindah ke Redis self-hosted, tinggal tambah service `redis:7-alpine` di compose dan ganti `REDIS_URL`.
+- `HEALTHCHECK` bawaan Dockerfile hit `GET /health` — kalau deploy ke Kubernetes/OpenShift, ini bisa dipetakan langsung ke `livenessProbe`/`readinessProbe` (HTTP GET `/health` di port container).
+- Image ini portable ke platform manapun yang menerima container: Kubernetes/OpenShift (termasuk K-PaaS), Docker Compose di VM, atau container registry lain — tidak ada asumsi platform spesifik di dalam Dockerfile-nya.
+
 ## Multi-Akun WhatsApp?
 
 Engine ini didesain **single-account** (satu socket Baileys, satu `auth_state/`). "Ganti nomor" (logout nomor lama → scan QR nomor baru) sudah didukung lewat `POST /session/logout`. Multi-akun yang jalan **bersamaan** secara teknis mungkin dengan Baileys, tapi butuh refactor arsitektur (auth state & socket per-sesi, endpoint session-aware) yang belum diimplementasikan — dicatat sebagai enhancement masa depan, bukan bagian dari versi saat ini.
@@ -115,4 +138,4 @@ Baileys versi terbaru bergantung pada `whatsapp-rust-bridge`, sebuah package ESM
 
 ## Roadmap
 
-Fase 1-4 (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger) sudah selesai, ditambah seluruh item Fase 6 (rate limiting, reconnect robust, enkripsi auth state). Yang masih tersisa: Fase 5 (Docker/deployment) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk detail rancangannya.
+Fase 1-6 dari rancangan awal sudah selesai semua (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger, containerization, hardening) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk rancangan lengkapnya. Pengembangan lanjutan (multi-akun, persistensi log ke database, dsb.) dicatat sebagai enhancement terpisah di bagian-bagian relevan README ini.

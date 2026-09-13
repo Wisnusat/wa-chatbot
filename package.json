@@ -24,7 +24,6 @@
     "typescript": "^7.0.2"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true,
     "@whiskeysockets/baileys@7.0.0-rc14": true,
     "protobufjs@7.6.6": true
   },

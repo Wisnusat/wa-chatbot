@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - auth_state:/app/auth_state
+      - data:/app/data
+    restart: unless-stopped
+
+volumes:
+  auth_state:
+  data:
