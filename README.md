@@ -136,6 +136,3 @@ Baileys versi terbaru bergantung pada `whatsapp-rust-bridge`, sebuah package ESM
 - Baileys bekerja di luar API resmi WhatsApp — ada risiko ban akun yang tidak bisa diprediksi sepenuhnya. Gunakan nomor development, bukan nomor bisnis utama, sampai stabil.
 - Folder `auth_state/` setara kredensial penuh ke akun WhatsApp — jangan pernah commit ke git (sudah di-gitignore).
 
-## Roadmap
-
-Fase 1-6 dari rancangan awal sudah selesai semua (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger, containerization, hardening) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk rancangan lengkapnya. Pengembangan lanjutan (multi-akun, persistensi log ke database, dsb.) dicatat sebagai enhancement terpisah di bagian-bagian relevan README ini.
