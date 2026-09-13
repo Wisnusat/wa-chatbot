@@ -1,13 +1,24 @@
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import type { AnyMessageContent } from '@whiskeysockets/baileys';
 import { getSocket } from '../whatsapp/socket.ts';
 import { getStatus } from '../whatsapp/sessionStatus.ts';
+import { env } from '../config/env.ts';
 
 export const messagesRouter = Router();
 
 function toJid(to: string): string {
   return to.includes('@') ? to : `${to}@s.whatsapp.net`;
 }
+
+const sendRateLimiter = rateLimit({
+  windowMs: env.sendRateLimitWindowMs,
+  limit: env.sendRateLimitMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: () => 'global',
+  message: { error: 'Terlalu banyak pesan dikirim dalam waktu singkat, coba lagi nanti' },
+});
 
 /**
  * @swagger
@@ -38,10 +49,12 @@ function toJid(to: string): string {
  *         description: Pesan berhasil dikirim
  *       400:
  *         description: Input tidak valid
+ *       429:
+ *         description: Rate limit terlampaui
  *       503:
  *         description: Socket WhatsApp belum terhubung
  */
-messagesRouter.post('/messages/send', async (req, res) => {
+messagesRouter.post('/messages/send', sendRateLimiter, async (req, res) => {
   const { to, type, content } = req.body ?? {};
 
   if (!to || !type || content === undefined) {

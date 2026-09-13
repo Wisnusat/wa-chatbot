@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises';
 import { Router } from 'express';
-import { getSocket, initSocket } from '../whatsapp/socket.ts';
+import { getSocket, initSocket, reconnect } from '../whatsapp/socket.ts';
 import { getStatus, getFullStatus, updateStatus } from '../whatsapp/sessionStatus.ts';
 import { AUTH_STATE_DIR } from '../whatsapp/authState.ts';
 import { logger } from '../utils/logger.ts';
@@ -59,4 +59,19 @@ sessionRouter.post('/session/logout', async (_req, res) => {
   res.json({ success: true });
 
   initSocket().catch((err) => logger.error(err, 'Failed to re-initialize WhatsApp socket after logout'));
+});
+
+/**
+ * @swagger
+ * /session/reconnect:
+ *   post:
+ *     summary: Paksa reconnect socket WhatsApp (reset percobaan reconnect otomatis)
+ *     description: Berguna kalau auto-reconnect sudah menyerah setelah gagal berkali-kali. Tidak menghapus auth state — kalau sesi masih valid, akan connect kembali tanpa perlu scan QR.
+ *     responses:
+ *       200:
+ *         description: Proses reconnect dimulai
+ */
+sessionRouter.post('/session/reconnect', (_req, res) => {
+  res.json({ success: true });
+  reconnect().catch((err) => logger.error(err, 'Manual reconnect failed'));
 });

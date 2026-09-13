@@ -13,4 +13,6 @@ export const env = {
   logLevel: process.env.LOG_LEVEL ?? 'info',
   n8nWebhookUrl: required('N8N_WEBHOOK_URL'),
   redisUrl: required('REDIS_URL'),
+  sendRateLimitMax: Number(process.env.SEND_RATE_LIMIT_MAX ?? 20),
+  sendRateLimitWindowMs: Number(process.env.SEND_RATE_LIMIT_WINDOW_MS ?? 60_000),
 };

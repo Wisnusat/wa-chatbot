@@ -25,6 +25,7 @@ Rancangan arsitektur lengkap ada di [whatsapp-engine-design.md](./whatsapp-engin
 2. Copy `.env.example` ke `.env`, lalu isi:
    - `N8N_WEBHOOK_URL` — endpoint webhook n8n tujuan forwarding pesan masuk
    - `REDIS_URL` — connection string Redis (rekomendasi: buat database gratis di [Upstash](https://console.upstash.com), ambil connection string dari tab **Connect** driver **ioredis**, formatnya `rediss://default:<password>@<endpoint>.upstash.io:6379`)
+   - `SEND_RATE_LIMIT_MAX` / `SEND_RATE_LIMIT_WINDOW_MS` — opsional, default 20 pesan/60 detik (lihat bagian **Reconnect & Rate Limiting**)
 3. Jalankan dev server:
    ```
    npm run dev
@@ -43,6 +44,7 @@ Auth state tersimpan di folder `auth_state/` (gitignored) — sekali scan, tidak
 | `GET /session/status` | Cek status sesi — termasuk `phoneNumber` (nomor terkoneksi) dan `n8nWebhookUrl` |
 | `GET /session/qr` | Ambil QR terakhir dalam bentuk base64 data URL (fallback non-realtime, untuk frontend yang belum konek Socket.IO) |
 | `POST /session/logout` | Logout sesi & hapus auth state (dipakai juga untuk "ganti nomor" — otomatis generate QR baru setelahnya) |
+| `POST /session/reconnect` | Paksa reconnect (reset counter auto-reconnect), tanpa hapus auth state — untuk pemulihan manual kalau auto-reconnect sudah menyerah |
 | `GET /logs/messages` | Riwayat pesan WhatsApp masuk (in-memory, maks 200 terakhir) |
 | `GET /logs/forwards` | Riwayat hasil forward ke n8n — sukses/gagal per percobaan (in-memory, maks 200 terakhir) |
 | `GET /allowlist` | Ambil konfigurasi filter forwarding (`{ enabled, jids }`) |
@@ -73,6 +75,11 @@ Secara default, **semua** pesan masuk diteruskan ke n8n. Untuk membatasi hanya d
 2. `PUT /allowlist` dengan body `{ "enabled": true, "jids": ["<jid1>", "<jid2>"] }` — hanya JID di daftar ini yang akan di-forward ke n8n setelahnya. Pesan lain tetap tercatat di `/logs/messages` (untuk visibility), tapi tidak dikirim ke webhook.
 3. Set `enabled: false` untuk kembali forward semua pesan.
 
+## Reconnect & Rate Limiting
+
+- **Auto-reconnect** pakai exponential backoff (2s, 4s, 8s, ... maks 60s per percobaan) dan berhenti otomatis setelah 10 kali gagal berturut-turut (supaya tidak spam-reconnect ke WhatsApp kalau jaringan/server bermasalah lama). Kalau sudah menyerah, panggil `POST /session/reconnect` untuk coba lagi manual — counter di-reset, tidak perlu scan QR ulang selama auth state masih valid.
+- **Rate limit** di `POST /messages/send`: default maks 20 pesan per 60 detik, berlaku **global** (bukan per-IP/per-caller) karena tujuannya membatasi total volume yang keluar dari satu akun WhatsApp ini, bukan membatasi satu klien. Kelebihan limit dapat response `429`. Atur lewat `SEND_RATE_LIMIT_MAX` dan `SEND_RATE_LIMIT_WINDOW_MS` di `.env`.
+
 ## Multi-Akun WhatsApp?
 
 Engine ini didesain **single-account** (satu socket Baileys, satu `auth_state/`). "Ganti nomor" (logout nomor lama → scan QR nomor baru) sudah didukung lewat `POST /session/logout`. Multi-akun yang jalan **bersamaan** secara teknis mungkin dengan Baileys, tapi butuh refactor arsitektur (auth state & socket per-sesi, endpoint session-aware) yang belum diimplementasikan — dicatat sebagai enhancement masa depan, bukan bagian dari versi saat ini.
@@ -96,4 +103,4 @@ Baileys versi terbaru bergantung pada `whatsapp-rust-bridge`, sebuah package ESM
 
 ## Roadmap
 
-Fase 1-4 (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger) sudah selesai. Fase 5 (Docker/deployment) dan Fase 6 (hardening: enkripsi auth state, rate limiting, reconnect lebih robust) belum dikerjakan — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk detail rancangannya.
+Fase 1-4 (fondasi, QR/monitoring, webhook forwarding, REST API+Swagger) sudah selesai, ditambah sebagian Fase 6 (rate limiting & reconnect robust di atas). Yang masih tersisa: Fase 5 (Docker/deployment) dan sisa Fase 6 (enkripsi `auth_state` at-rest) — lihat [whatsapp-engine-design.md](./whatsapp-engine-design.md) untuk detail rancangannya.
