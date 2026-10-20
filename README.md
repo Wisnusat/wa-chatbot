@@ -52,7 +52,7 @@ Auth state tersimpan terenkripsi di folder `auth_state/` (gitignored) — sekali
 |---|---|
 | `GET /health` | Health check JSON (status, last connected, reconnect count) |
 | `GET /api-docs` | Dokumentasi API interaktif (Swagger UI) |
-| `POST /messages/send` | Kirim pesan WhatsApp |
+| `POST /messages/send` | Kirim pesan WhatsApp — opsional `replyTo` (rawId pesan masuk, untuk quote-reply) dan `mentions` (array JID untuk tag) |
 | `GET /session/status` | Cek status sesi — termasuk `phoneNumber` (nomor terkoneksi) dan `n8nWebhookUrl` |
 | `GET /session/qr` | Ambil QR terakhir dalam bentuk base64 data URL (fallback non-realtime, untuk frontend yang belum konek Socket.IO) |
 | `POST /session/logout` | Logout sesi & hapus auth state (dipakai juga untuk "ganti nomor" — otomatis generate QR baru setelahnya) |
@@ -72,7 +72,7 @@ Frontend eksternal connect ke server ini via Socket.IO client (`io("http://local
 | `qr:update` | `{ qr: string }` (base64 data URL) | Setiap kali QR baru digenerate (expired ~20 detik) |
 | `qr:cleared` | — | Saat koneksi berhasil dibuka, sembunyikan QR di UI |
 | `status:update` | Sama seperti response `GET /session/status` | Saat status koneksi berubah (open/close) |
-| `message:received` | `{ from, text, type, timestamp, rawId }` | Setiap pesan WhatsApp masuk baru |
+| `message:received` | `{ from, isGroup, sender, senderName, senderPhone, text, type, timestamp, rawId }` | Setiap pesan WhatsApp masuk baru (payload sama dengan yang di-forward ke n8n) |
 | `forward:result` | `{ jobId, status: 'success'\|'failed', attempt, timestamp, error, payload }` | Setiap kali worker selesai (atau gagal) forward pesan ke n8n |
 | `chat:known` | `{ jid, name, isGroup, lastMessageAt }` | Saat grup/kontak baru terdeteksi pertama kali mengirim pesan |
 | `allowlist:update` | `{ enabled, jids }` | Saat allowlist diubah lewat `PUT /allowlist` |
@@ -86,6 +86,24 @@ Secara default, **semua** pesan masuk diteruskan ke n8n. Untuk membatasi hanya d
 1. `GET /chats/known` untuk lihat daftar JID yang pernah mengirim pesan (nama grup di-resolve otomatis via `sock.groupMetadata`, nama kontak dari `pushName` WhatsApp).
 2. `PUT /allowlist` dengan body `{ "enabled": true, "jids": ["<jid1>", "<jid2>"] }` — hanya JID di daftar ini yang akan di-forward ke n8n setelahnya. Pesan lain tetap tercatat di `/logs/messages` (untuk visibility), tapi tidak dikirim ke webhook.
 3. Set `enabled: false` untuk kembali forward semua pesan.
+
+## Balas Spesifik (Quote-Reply) & Mention
+
+Dari n8n, pakai field payload pesan masuk untuk membalas pesan tertentu di grup:
+
+```json
+POST /messages/send
+{
+  "to": "{{ $json.from }}",
+  "type": "text",
+  "content": "Halo @{{ $json.senderPhone }}, pesanan kamu sudah diproses",
+  "replyTo": "{{ $json.rawId }}",
+  "mentions": ["{{ $json.sender }}"]
+}
+```
+
+- `replyTo` dicari di cache in-memory (500 pesan masuk terakhir). Kalau tidak ketemu (server restart / pesan sudah lama), pesan tetap terkirim tanpa quote dan response berisi `"quoted": false`.
+- Tag `@` baru tampil ter-highlight kalau teks memuat `@<nomor>` yang cocok dengan JID di `mentions`. Kalau `sender` berupa LID (`xxx@lid`), pakai angka LID-nya di teks (`@xxx`).
 
 ## Reconnect & Rate Limiting
 

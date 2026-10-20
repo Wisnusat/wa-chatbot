@@ -12,6 +12,14 @@ export const n8nForwardQueue = new Queue<IncomingMessagePayload>('n8n-forward', 
   },
 });
 
+// Baileys bisa mengirim ulang pesan yang sama (mis. setelah reconnect/retry dekripsi).
+// Dedup per chat + message ID supaya n8n tidak memproses (dan membalas) dua kali.
+const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
+
 export async function enqueueForward(payload: IncomingMessagePayload): Promise<void> {
-  await n8nForwardQueue.add('forward', payload);
+  await n8nForwardQueue.add('forward', payload, {
+    ...(payload.rawId && {
+      deduplication: { id: `${payload.from}|${payload.rawId}`, ttl: DEDUP_TTL_MS },
+    }),
+  });
 }
